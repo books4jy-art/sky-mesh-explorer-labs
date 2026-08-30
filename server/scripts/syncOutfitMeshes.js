@@ -5,7 +5,7 @@
 //
 //   node server/scripts/syncOutfitMeshes.js --dry-run          (report only, default)
 //   node server/scripts/syncOutfitMeshes.js --dry-run=false    (write; loops until done)
-import 'dotenv/config';
+import '../loadEnv.js';
 import { driveAuth } from '../drive.js';
 import { OutfitIcon } from '../entities.js';
 import { OUTFIT_MESH_FOLDER_ID, PLACEHOLDER_DRIVE_FILE_ID } from '../outfitNaming.js';

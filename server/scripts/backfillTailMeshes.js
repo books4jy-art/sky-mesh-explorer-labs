@@ -4,7 +4,7 @@
 // syncOutfitMeshes never touches these — this script handles them inline.
 //   node server/scripts/backfillTailMeshes.js --dry-run          (default)
 //   node server/scripts/backfillTailMeshes.js --dry-run=false
-import 'dotenv/config';
+import '../loadEnv.js';
 import { driveAuth } from '../drive.js';
 import { OutfitIcon } from '../entities.js';
 import { OUTFIT_MESH_FOLDER_ID } from '../outfitNaming.js';

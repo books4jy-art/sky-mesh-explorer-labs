@@ -2,7 +2,7 @@
 // already icon-merged row for the same objDriveFileId.
 //   node server/scripts/deleteDuplicatePlaceholders.js --dry-run   (default, report only)
 //   node server/scripts/deleteDuplicatePlaceholders.js --dry-run=false
-import 'dotenv/config';
+import '../loadEnv.js';
 import { OutfitIcon } from '../entities.js';
 import { PLACEHOLDER_DRIVE_FILE_ID } from '../outfitNaming.js';
 import { parseArgs } from '../driveList.js';

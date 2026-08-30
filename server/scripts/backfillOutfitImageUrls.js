@@ -1,7 +1,7 @@
 // One-off: rewrite imageUrl from a bare driveFileId into the canonical
 // https://lh3.googleusercontent.com/d/{id} form, for every row missing it.
 //   node server/scripts/backfillOutfitImageUrls.js
-import 'dotenv/config';
+import '../loadEnv.js';
 import { OutfitIcon } from '../entities.js';
 import { PLACEHOLDER_DRIVE_FILE_ID } from '../outfitNaming.js';
 

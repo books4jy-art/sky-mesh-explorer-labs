@@ -3,7 +3,7 @@
 // naming pattern, so the main matcher never finds them).
 //   node server/scripts/backfillNeckDragonIcons.js --dry-run          (default)
 //   node server/scripts/backfillNeckDragonIcons.js --dry-run=false
-import 'dotenv/config';
+import '../loadEnv.js';
 import { driveAuth } from '../drive.js';
 import { OutfitIcon } from '../entities.js';
 import { OUTFIT_ICON_FOLDER_ID } from '../outfitNaming.js';

@@ -1,6 +1,6 @@
 // Read-only reconciliation: Drive PNG counts vs. OutfitIcon rows.
 //   node server/scripts/auditIconSource.js
-import 'dotenv/config';
+import '../loadEnv.js';
 import { driveAuth } from '../drive.js';
 import { OutfitIcon } from '../entities.js';
 import { OUTFIT_ICON_FOLDER_ID } from '../outfitNaming.js';

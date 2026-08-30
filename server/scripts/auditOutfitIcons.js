@@ -1,6 +1,6 @@
 // Read-only: OutfitIcon row-shape reconciliation + Drive-parent provenance check.
 //   node server/scripts/auditOutfitIcons.js
-import 'dotenv/config';
+import '../loadEnv.js';
 import { driveAuth } from '../drive.js';
 import { OutfitIcon } from '../entities.js';
 import { OUTFIT_MESH_FOLDER_ID as ROOT_FOLDER_ID } from '../outfitNaming.js';

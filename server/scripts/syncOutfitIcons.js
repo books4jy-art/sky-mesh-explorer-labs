@@ -3,7 +3,7 @@
 // to Drive) before syncOutfitMeshes.
 //
 //   node server/scripts/syncOutfitIcons.js
-import 'dotenv/config';
+import '../loadEnv.js';
 import { driveAuth } from '../drive.js';
 import { OutfitIcon } from '../entities.js';
 import { OUTFIT_ICON_FOLDER_ID, iconBaseName } from '../outfitNaming.js';

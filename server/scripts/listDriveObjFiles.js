@@ -2,7 +2,7 @@
 // Mostly superseded by syncDriveLibrary (which persists to Postgres) — useful
 // for a quick sanity check of what's actually in Drive.
 //   node server/scripts/listDriveObjFiles.js
-import 'dotenv/config';
+import '../loadEnv.js';
 import { driveAuth } from '../drive.js';
 import { DRIVE_FOLDER_ID } from '../config.js';
 import { listChildren } from '../driveList.js';

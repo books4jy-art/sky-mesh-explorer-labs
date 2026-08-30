@@ -1,7 +1,7 @@
 // Re-runs the mesh<->icon merge for an explicit list of filenames that fell
 // through the main syncOutfitMeshes pass.
 //   node server/scripts/mergeOutfitStragglers.js --files=Body_Foo.obj,Hair_Bar.obj
-import 'dotenv/config';
+import '../loadEnv.js';
 import { driveAuth } from '../drive.js';
 import { OutfitIcon } from '../entities.js';
 import { OUTFIT_MESH_FOLDER_ID } from '../outfitNaming.js';
