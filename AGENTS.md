@@ -2,33 +2,23 @@
 
 ## Project Context
 
-This is a Base44 app repository. Treat it as user-owned application code, keep changes focused on the user's request, and preserve existing project conventions.
+Sky Mesh Explorer is a self-hosted app: a React/Vite frontend and a small Express backend (`server/`) backed by Postgres and a Google Drive service account. It does not depend on Base44.
 
-Start with `README.md` for local setup, environment variables, and publish workflow.
-
-## Base44 References
-
-- CLI overview: https://docs.base44.com/developers/references/cli/get-started/overview.md
-- Agent skills: https://docs.base44.com/developers/backend/overview/skills.md
-
-If your agent supports Agent Skills, install or update Base44 skills before Base44-specific work:
-
-```bash
-npx skills add base44/skills
-```
+Start with `README.md` for setup, environment variables, and running locally/deploying.
 
 ## Key Files
 
 - `src/`: frontend application source.
-- `src/api/base44Client.js`: frontend Base44 SDK client.
-- `vite.config.js`: Vite config and Base44 Vite plugin setup.
-- `.env.local`: local-only environment values; never commit secrets.
+- `src/api/base44Client.js`: thin fetch client the frontend uses to call the backend (`base44.functions.invoke(name, body)` — name kept for minimal diff against the app's history, not a Base44 dependency).
+- `server/index.js`: Express app entrypoint; mounts routes and serves the built frontend in production.
+- `server/routes/`: the live HTTP endpoints the frontend calls.
+- `server/scripts/`: one-off/admin data-maintenance scripts (Drive↔Postgres sync, backfills, audits) — run via `node server/scripts/<name>.js`, not exposed over HTTP.
+- `server/db.js`: Postgres pool + schema creation.
+- `server/drive.js`: Google service-account Drive auth.
+- `.env.local`: local-only environment values (`DATABASE_URL`, `GOOGLE_SERVICE_ACCOUNT_KEY_FILE`, etc.) — never commit secrets.
 
 ## Working Notes
 
-- Use `base44 dev` as the default local development command when you need the local Base44 backend. It can run the backend and frontend together.
-- When docs or code mention the frontend being started automatically, that usually means the Base44 project config includes `site.serveCommand`, for example `"serveCommand": "npm run dev"` in `base44/config.jsonc`.
-- Use `npm run dev` only for frontend-only work against the hosted Base44 backend.
-- Prefer the existing Base44 CLI workflow over adding new npm scripts for Base44-specific tasks.
-- Reuse the existing SDK client and Vite plugin patterns before adding new Base44 integration paths.
+- `npm run dev` runs the Vite frontend and the Express backend together (frontend proxies `/api` to the backend).
+- `npm run build && npm start` is the production path — one process serves both the built frontend and the API.
 - Run the relevant checks from `package.json` before finishing code changes.

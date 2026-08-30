@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { appParams } from '@/lib/app-params';
 
-const PROXY_URL = `/api/apps/${appParams.appId}/functions/getOutfitIconImage`;
+const PROXY_URL = '/api/functions/getOutfitIconImage';
 const PLACEHOLDER_DRIVE_FILE_ID = '1Or3YuWpZjH4WOqVLgp812Q0hRmzSonUP';
 const PLACEHOLDER_PROXY_URL = `${PROXY_URL}?driveFileId=${PLACEHOLDER_DRIVE_FILE_ID}`;
 const MAX_CONCURRENCY = 6;

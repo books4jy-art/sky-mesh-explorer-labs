@@ -1,77 +1,92 @@
-# Base44 Project
+# Sky Mesh Explorer
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+A self-hosted toolkit for browsing and dressing up *Sky: Children of the Light* assets: a **Mesh Viewer** that decodes the game's proprietary `.mesh` format client-side and exports to `.obj`, and an **Outfit Maker** for mixing cataloged outfit pieces into a combined 3D preview/export.
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+This app runs entirely on infrastructure you control — a Node/Express backend, a Postgres database, and your own Google Drive service account. It no longer depends on Base44.
+
+## Architecture
+
+- **Frontend** — React + Vite, served as static files.
+- **Backend** — `server/index.js`, a small Express app exposing the same handful of endpoints the frontend calls (`/api/functions/*`).
+- **Database** — Postgres (e.g. a free Supabase project). Three tables: `mesh_files`, `outfit_icons`, `library_sync_status`.
+- **Asset source** — a Google Drive folder tree with your extracted `.obj` meshes and `.png` outfit icons, read via a Google Cloud service account (read-only Drive scope).
 
 ## Prerequisites
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
+1. **Postgres database** — easiest option is a free [Supabase](https://supabase.com) project. Grab the connection string from Project Settings → Database → Connection string (URI form).
+2. **Google Cloud service account** with Drive API access:
+   - Create a project at [console.cloud.google.com](https://console.cloud.google.com), enable the **Google Drive API**.
+   - Create a service account, download its JSON key, save it as `service-account.json` in the project root (already `.gitignore`'d).
+   - Share your mesh/icon Drive folders with the service account's `client_email` (Viewer access is enough).
+3. Node.js 18+.
 
-See the [Base44 CLI docs](https://docs.base44.com/developers/references/cli/get-started/overview) if you want to run Base44 commands directly.
-
-## Run Locally
-
-Run the full local development environment from the project root:
+## Setup
 
 ```bash
-base44 dev
+npm install
+cp .env.example .env.local
 ```
 
-`base44 dev` starts the local Base44 development backend and, when this app is configured for it, also starts the frontend dev server for you. Use the frontend URL printed by the command.
+Edit `.env.local`:
 
-For example, when the Base44 project config includes a `serveCommand`, `base44 dev` can launch the frontend too:
-
-```json5
-{
-  "site": {
-    "serveCommand": "npm run dev"
-  }
-}
+```bash
+DATABASE_URL=postgresql://...           # your Postgres connection string
+GOOGLE_SERVICE_ACCOUNT_KEY_FILE=./service-account.json
 ```
 
-In a Base44 project this lives in `base44/config.jsonc`.
+(Optional overrides for `DRIVE_FOLDER_ID` / `OUTFIT_ICON_FOLDER_ID` / `OUTFIT_MESH_FOLDER_ID` / `PLACEHOLDER_DRIVE_FILE_ID` — see `.env.example` — only needed if you're not using the original curated Drive folders.)
 
-## Run Only The Frontend
+The database tables are created automatically the first time the server starts.
 
-If you only want to work on the frontend against the hosted Base44 backend, run:
+## Run locally
 
 ```bash
 npm run dev
 ```
 
-Open the local URL printed by Vite.
+Starts Vite (frontend, with HMR) and the Express backend together; open the URL Vite prints. The frontend proxies `/api/*` to the backend.
 
-## Use The Hosted Backend
+## Seed the data
 
-For frontend-only development, create or update `.env.local` in the project root:
-
-```bash
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
-```
-
-`VITE_BASE44_APP_ID` identifies the Base44 app.
-
-`VITE_BASE44_APP_BASE_URL` tells the Base44 Vite plugin where to send local `/api` requests. Point it at your deployed Base44 app URL when you want the local frontend to use the hosted backend.
-
-When you use `base44 dev`, the command injects the local Base44 values for you, so `.env.local` is mainly needed for frontend-only workflows.
-
-## Publish Your Changes
-
-After pushing your changes to git, open the Base44 dashboard and publish the app:
+The Mesh Viewer's library and the Outfit Maker's catalog are empty until you sync them from Drive:
 
 ```bash
-base44 dashboard open
+# Mesh Viewer library
+node server/scripts/listDriveObjFiles.js     # optional sanity check of what's in Drive
+# (or just click "Sync Library" in the Viewer UI — calls the same syncDriveLibrary endpoint)
+
+# Outfit Maker catalog
+node server/scripts/syncOutfitIcons.js
+node server/scripts/syncOutfitMeshes.js --dry-run          # review the plan first
+node server/scripts/syncOutfitMeshes.js --dry-run=false    # then write it
 ```
 
-## Docs & Support
+A handful of other scripts under `server/scripts/` exist for one-off data cleanup that the original curated dataset needed (mismatched naming, duplicate placeholder rows, etc.) — see the comment at the top of each file for what it does and when you'd need it: `auditIconSource.js`, `auditOutfitIcons.js`, `backfillNeckDragonIcons.js`, `backfillOutfitImageUrls.js`, `backfillTailMeshes.js`, `deleteDuplicatePlaceholders.js`, `mergeOutfitStragglers.js`.
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+## Deploy (self-hosted)
 
-Base44 CLI command reference: [https://docs.base44.com/developers/references/cli/commands/introduction](https://docs.base44.com/developers/references/cli/commands/introduction)
+Build the frontend, then run the server in production mode — it serves the built frontend and the API from a single process/port:
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+```bash
+npm run build
+npm start
+```
+
+### Docker
+
+```bash
+docker build -t sky-mesh-explorer .
+docker run -p 3001:3001 \
+  --env-file .env.local \
+  -v $(pwd)/service-account.json:/app/service-account.json:ro \
+  sky-mesh-explorer
+```
+
+Point `DATABASE_URL` at your Supabase (or any reachable) Postgres instance — the container itself doesn't run a database.
+
+## Project layout
+
+- `src/` — frontend (React Router pages, Three.js mesh viewer, outfit maker UI).
+- `server/` — Express backend: live routes under `server/routes/`, one-off/admin data scripts under `server/scripts/`.
+- `server/db.js` — Postgres pool + schema creation.
+- `server/drive.js` — Google service-account Drive auth.
