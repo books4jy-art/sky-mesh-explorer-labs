@@ -4,13 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Image } from '@/components/ui/image';
 import * as THREE from 'three';
-import { meshToObj } from '@/lib/skyMeshToObj';
+import { parseMeshBuffer, buildObjText, fileFlags } from '@/lib/skyMeshParser';
 import { downloadObj as exportObjFile } from '@/lib/meshExport';
 import { loadTextureBytes } from '@/lib/skyTextureDecoder';
 import DropZone from '@/components/viewer/DropZone';
 import MeshStats from '@/components/viewer/MeshStats';
+import UvInspector from '@/components/viewer/UvInspector';
 import MeshCanvas from '@/components/viewer/MeshCanvas';
 import TexturePaster from '@/components/viewer/TexturePaster';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { base44 } from '@/api/base44Client';
 import { parseObj } from '@/lib/objParser';
 import LibraryPanel from '@/components/viewer/LibraryPanel';
@@ -32,26 +34,13 @@ export default function Viewer() {
     setError(null);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const { obj, mesh } = meshToObj(bytes, file.name);
-      const positions = new Float32Array(mesh.vertices.length * 3);
-      for (let i = 0; i < mesh.vertices.length; i++) {
-        positions[i * 3] = mesh.vertices[i][0];
-        positions[i * 3 + 1] = mesh.vertices[i][1];
-        positions[i * 3 + 2] = mesh.vertices[i][2];
-      }
-      let uvs = null;
-      if (mesh.uvs) {
-        uvs = new Float32Array(mesh.uvs.length * 2);
-        for (let i = 0; i < mesh.uvs.length; i++) { uvs[i * 2] = mesh.uvs[i][0]; uvs[i * 2 + 1] = mesh.uvs[i][1]; }
-      }
-      const IndexCtor = mesh.vertexCount > 65535 ? Uint32Array : Uint16Array;
-      const indices = new IndexCtor(mesh.triangles.length * 3);
-      for (let i = 0; i < mesh.triangles.length; i++) {
-        indices[i * 3] = mesh.triangles[i][0]; indices[i * 3 + 1] = mesh.triangles[i][1]; indices[i * 3 + 2] = mesh.triangles[i][2];
-      }
-      const topFlags = bytes.length > 0x48 ? bytes[0x48] : 0;
-      const hasSkin = (topFlags & 1) !== 0;
-      setData({ fileName: file.name, obj, mesh, positions, uvs, indices, hasSkin });
+      const parsed = parseMeshBuffer(bytes, { fileName: file.name });
+      const positions = Float32Array.from(parsed.vertices);
+      const uvs = parsed.uvs.length ? Float32Array.from(parsed.uvs) : null;
+      const vertexCount = parsed.vertices.length / 3;
+      const IndexCtor = vertexCount > 65535 ? Uint32Array : Uint16Array;
+      const indices = IndexCtor.from(parsed.indices);
+      setData({ fileName: file.name, parsed, positions, uvs, indices, hasSkin: parsed.animated });
     } catch (e) {
       setData(null);
       setError(e.message || 'Failed to decode this file.');
@@ -59,7 +48,8 @@ export default function Viewer() {
   };
 
   const downloadObj = () => {
-    exportObjFile(data.obj, data.fileName.replace(/\.mesh$/i, '') + '.obj');
+    const obj = data.obj || buildObjText(data.parsed, data.fileName);
+    exportObjFile(obj, data.fileName.replace(/\.mesh$/i, '') + '.obj');
   };
 
   const handleTexture = async (file) => {
@@ -90,8 +80,15 @@ export default function Viewer() {
     try {
       const res = await base44.functions.invoke('fetchDriveObjFile', { fileId: file.driveFileId });
       const text = res.data;
-      const { positions, uvs, indices, vertexCount, triangleCount } = parseObj(text);
-      setData({ fileName: file.name, obj: text, positions, uvs, indices, mesh: { vertexCount, triangles: new Array(triangleCount), uvs: !!uvs }, hasSkin: false });
+      const { positions, uvs, indices } = parseObj(text);
+      // Library models come pre-converted to .obj — no raw .mesh header to decode,
+      // so version/flags/skeleton/uvSets are unavailable (MeshStats/UvInspector treat these as optional).
+      const parsed = {
+        fileName: file.name, version: null, flags: fileFlags(file.name), animated: false, skeleton: null,
+        primaryUvSet: uvs ? 'UV0' : null, uvSets: null, embeddedReferences: [],
+        vertices: positions, uvs: uvs || [], indices,
+      };
+      setData({ fileName: file.name, obj: text, parsed, positions, uvs, indices, hasSkin: false });
       setLibraryOpen(false);
     } catch (e) {
       setError(e.message || 'Failed to load this model.');
@@ -153,7 +150,22 @@ export default function Viewer() {
           </div>
 
           <aside className="space-y-8 rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-            <MeshStats fileName={data.fileName} mesh={data.mesh} hasSkin={data.hasSkin} hasUvs={!!data.uvs} />
+            {data.parsed.uvSets?.length ? (
+              <Tabs defaultValue="stats">
+                <TabsList className="w-full">
+                  <TabsTrigger value="stats" className="flex-1">Stats</TabsTrigger>
+                  <TabsTrigger value="uv" className="flex-1">UV Inspector</TabsTrigger>
+                </TabsList>
+                <TabsContent value="stats" className="mt-4">
+                  <MeshStats parsed={data.parsed} />
+                </TabsContent>
+                <TabsContent value="uv" className="mt-4">
+                  <UvInspector parsed={data.parsed} />
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <MeshStats parsed={data.parsed} />
+            )}
 
             <TexturePaster onFile={handleTexture} textureName={textureName} onClear={clearTexture} error={textureError} />
 
