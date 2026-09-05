@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Download, Grid3x3, RotateCw, X, BookOpen, Box } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -6,6 +6,7 @@ import { Image } from '@/components/ui/image';
 import * as THREE from 'three';
 import { parseMeshBuffer, buildObjText, fileFlags } from '@/lib/skyMeshParser';
 import { downloadObj as exportObjFile } from '@/lib/meshExport';
+import { exportMeshToGlb } from '@/lib/glbExport';
 import { loadTextureBytes } from '@/lib/skyTextureDecoder';
 import DropZone from '@/components/viewer/DropZone';
 import MeshStats from '@/components/viewer/MeshStats';
@@ -19,27 +20,6 @@ import LibraryPanel from '@/components/viewer/LibraryPanel';
 import { Link } from 'react-router-dom';
 import { Shirt } from 'lucide-react';
 
-function arrayBufferToBase64(bytes) {
-  let binary = '';
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
-async function rgbaToPngBase64({ data, width, height }) {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  ctx.putImageData(new ImageData(new Uint8ClampedArray(data), width, height), 0, 0);
-  const blob = await new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG encode failed'))), 'image/png')
-  );
-  return arrayBufferToBase64(new Uint8Array(await blob.arrayBuffer()));
-}
-
 export default function Viewer() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -50,17 +30,8 @@ export default function Viewer() {
   const [textureError, setTextureError] = useState(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(false);
-  const [texturePngBase64, setTexturePngBase64] = useState(null);
-  const [blenderAvailable, setBlenderAvailable] = useState(null);
-  const [fbxExporting, setFbxExporting] = useState(false);
-  const [fbxError, setFbxError] = useState(null);
-
-  useEffect(() => {
-    fetch('/api/functions/blenderStatus')
-      .then((res) => res.json())
-      .then((body) => setBlenderAvailable(Boolean(body.available)))
-      .catch(() => setBlenderAvailable(false));
-  }, []);
+  const [glbExporting, setGlbExporting] = useState(false);
+  const [glbError, setGlbError] = useState(null);
 
   const handleFile = async (file) => {
     setError(null);
@@ -84,42 +55,22 @@ export default function Viewer() {
     exportObjFile(obj, data.fileName.replace(/\.mesh$/i, '') + '.obj');
   };
 
-  const downloadFbx = async () => {
-    setFbxError(null);
-    setFbxExporting(true);
+  const downloadGlb = async () => {
+    setGlbError(null);
+    setGlbExporting(true);
     try {
-      const parsed = data.parsed;
-      const res = await fetch('/api/functions/exportMeshFbx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: parsed.fileName,
-          modelName: parsed.modelName,
-          vertices: Array.from(parsed.vertices),
-          normals: Array.from(parsed.normals || []),
-          indices: Array.from(parsed.indices),
-          uvs: Array.from(parsed.uvs || []),
-          primaryUvSet: parsed.primaryUvSet,
-          skeleton: parsed.skeleton || [],
-          boneWeights: parsed.boneWeights || [],
-          texturePngBase64,
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `Export failed (${res.status})`);
-      }
-      const blob = await res.blob();
+      const glb = await exportMeshToGlb(data.parsed, texture);
+      const blob = new Blob([glb], { type: 'model/gltf-binary' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = data.fileName.replace(/\.mesh$/i, '') + '.fbx';
+      a.download = data.fileName.replace(/\.mesh$/i, '') + '.glb';
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setFbxError(e.message || 'Failed to export FBX.');
+      setGlbError(e.message || 'Failed to export GLB.');
     } finally {
-      setFbxExporting(false);
+      setGlbExporting(false);
     }
   };
 
@@ -138,13 +89,12 @@ export default function Viewer() {
       tex.colorSpace = THREE.SRGBColorSpace;
       setTexture(tex);
       setTextureName(file.name);
-      setTexturePngBase64(await rgbaToPngBase64(asset.rgba));
     } catch (e) {
       setTextureError(e.message || 'Failed to decode texture.');
     }
   };
 
-  const clearTexture = () => { setTexture(null); setTextureName(null); setTextureError(null); setTexturePngBase64(null); };
+  const clearTexture = () => { setTexture(null); setTextureName(null); setTextureError(null); };
 
   const handleLoadObj = async (file) => {
     setError(null);
@@ -256,25 +206,18 @@ export default function Viewer() {
               <Button onClick={downloadObj} className="w-full bg-sky-400 text-slate-900 hover:bg-sky-300">
                 <Download className="mr-2 h-4 w-4" /> Export OBJ
               </Button>
-              {blenderAvailable !== false && (
-                <Button
-                  onClick={downloadFbx}
-                  disabled={fbxExporting || blenderAvailable === null}
-                  variant="outline"
-                  className="w-full border-white/15 text-white hover:bg-white/10"
-                >
-                  <Box className="mr-2 h-4 w-4" />
-                  {fbxExporting ? 'Exporting…' : 'Export FBX'}
-                </Button>
-              )}
-              {blenderAvailable === false && (
-                <p className="text-[11px] leading-relaxed text-white/30">
-                  FBX export needs Blender installed on the server (set <code>BLENDER_EXE</code> if it's not auto-detected).
-                </p>
-              )}
-              {fbxError && (
+              <Button
+                onClick={downloadGlb}
+                disabled={glbExporting}
+                variant="outline"
+                className="w-full border-white/15 text-white hover:bg-white/10"
+              >
+                <Box className="mr-2 h-4 w-4" />
+                {glbExporting ? 'Exporting…' : 'Export GLB'}
+              </Button>
+              {glbError && (
                 <p className="rounded-lg border border-red-400/20 bg-red-400/5 px-3 py-2 text-[11px] leading-relaxed text-red-300">
-                  {fbxError}
+                  {glbError}
                 </p>
               )}
             </div>
