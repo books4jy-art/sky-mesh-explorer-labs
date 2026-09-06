@@ -4,6 +4,8 @@ A self-hosted toolkit for browsing and dressing up *Sky: Children of the Light* 
 
 This app runs entirely on infrastructure you control — a Node/Express backend, a Postgres database, and your own Google Drive service account. It no longer depends on Base44.
 
+**Live demo:** https://sky-mesh-explorer-labs.onrender.com/
+
 ## Architecture
 
 - **Frontend** — React + Vite, served as static files.
