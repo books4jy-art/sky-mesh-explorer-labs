@@ -2,7 +2,7 @@
 
 A self-hosted toolkit for browsing and dressing up *Sky: Children of the Light* assets: a **Mesh Viewer** that decodes the game's proprietary `.mesh` format client-side and exports to `.obj`, and an **Outfit Maker** for mixing cataloged outfit pieces into a combined 3D preview/export.
 
-This app runs entirely on infrastructure you control — a Node/Express backend, a Postgres database, and your own Google Drive service account. It no longer depends on Base44.
+This app runs entirely on infrastructure you control — a Node/Express backend, a Postgres database, and your own Google Drive service account.
 
 **Live demo:** https://sky-mesh-explorer-labs.onrender.com/
 
