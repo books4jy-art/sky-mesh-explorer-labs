@@ -36,9 +36,12 @@ export async function ensureSchema() {
       obj_drive_file_id text not null default '',
       obj_file_name text not null default ''
     );
+    alter table outfit_icons add column if not exists alt_obj_drive_file_id text not null default '';
+    alter table outfit_icons add column if not exists alt_obj_file_name text not null default '';
     create index if not exists outfit_icons_category_idx on outfit_icons (category);
     create index if not exists outfit_icons_obj_drive_file_id_idx on outfit_icons (obj_drive_file_id);
     create index if not exists outfit_icons_drive_file_id_idx on outfit_icons (drive_file_id);
+    create index if not exists outfit_icons_alt_obj_drive_file_id_idx on outfit_icons (alt_obj_drive_file_id);
 
     create table if not exists library_sync_status (
       id bigserial primary key,

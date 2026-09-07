@@ -6,6 +6,7 @@ import PageNotFound from './lib/PageNotFound';
 import ScrollToTop from './components/ScrollToTop';
 import Viewer from '@/pages/Viewer';
 import OutfitMaker from '@/pages/OutfitMaker';
+import AvatarMaker from '@/pages/AvatarMaker';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Viewer />} />
           <Route path="/outfit-maker" element={<OutfitMaker />} />
+          <Route path="/avatar-maker" element={<AvatarMaker />} />
           <Route path="*" element={<PageNotFound />} />
         </Routes>
       </Router>

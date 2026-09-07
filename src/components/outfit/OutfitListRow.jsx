@@ -3,10 +3,15 @@ import OutfitTile from './OutfitTile';
 import { deriveObjDisplayName } from '@/lib/deriveObjName';
 
 // Single-column list row: icon left (same proxy/lazy-load/WIP as OutfitTile),
-// derived .obj name right. Selection ring + checkmark behave identically to the
-// previous tile grid.
+// name right. Selection ring + checkmark behave identically to the previous
+// tile grid.
 export default function OutfitListRow({ item, isSelected, onSelect }) {
-  const label = deriveObjDisplayName(item.objFileName, item.category, item.name);
+  // item.name is the already-prettified catalog name ("AP07 Cargo Pants") and
+  // is populated for every row that reaches this list — prefer it. Only fall
+  // back to deriving a label from the raw .obj filename (which, outside the
+  // Props category, keeps the "Body_"/"Hair_"/etc. prefix and no spacing —
+  // e.g. "Body_AP07CargoPants") on the off chance name is ever missing.
+  const label = item.name || deriveObjDisplayName(item.objFileName, item.category, item.name);
   return (
     <button
       type="button"

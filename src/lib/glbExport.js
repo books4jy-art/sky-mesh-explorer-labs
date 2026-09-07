@@ -53,6 +53,27 @@ function skeletonWorldPositions(skeleton, vertices) {
     ? positions.map(([x, y, z]) => [-x, y, -z]) : positions;
 }
 
+// Majority vote across every skinned piece's own vertex bbox, rather than
+// trusting a single piece — a small/asymmetric accessory (e.g. a hood that
+// drapes far to one side) can disagree with the true orientation even
+// though the bind matrices behind it are identical to every other piece of
+// the same rig (verified against live data: same 124 bones, same names,
+// same hierarchy, byte-identical invBindMatrix per bone, file to file).
+// Ties (mostly the single-piece case) fall back to the largest piece by
+// vertex count, which is the least ambiguous single vote available.
+function decideSkeletonFlip(skinnedMeshes, bindPositions) {
+  const skeletonCenter = bboxCenter(bindPositions.flat());
+  const flipVote = (vertices) => {
+    const meshCenter = bboxCenter(vertices);
+    return Math.abs(-skeletonCenter[2] - meshCenter[2]) + 0.08 < Math.abs(skeletonCenter[2] - meshCenter[2]);
+  };
+  let votesFlip = 0, votesNoFlip = 0;
+  for (const m of skinnedMeshes) (flipVote(m.positions) ? votesFlip++ : votesNoFlip++);
+  if (votesFlip !== votesNoFlip) return votesFlip > votesNoFlip;
+  const largest = skinnedMeshes.reduce((a, b) => (b.positions.length > a.positions.length ? b : a));
+  return flipVote(largest.positions);
+}
+
 function buildSkinAttributes(boneWeights, vertexCount) {
   const skinIndex = new Uint16Array(vertexCount * 4);
   const skinWeight = new Float32Array(vertexCount * 4);
@@ -130,4 +151,85 @@ export async function exportMeshToGlb(parsed, texture) {
   const exporter = new GLTFExporter();
   const result = await exporter.parseAsync(scene, { binary: true });
   return result;
+}
+
+// Combines several independent pieces (e.g. an Avatar Maker selection) into
+// a single .glb. Sky's wearable pieces (Body/Cape/Face/Feet/Hair/Hat/Horn/
+// Mask/Neck) all skin to the SAME 124-bone avatar rig — identical bone
+// names, hierarchy, and bind matrices file-to-file (verified against the
+// live data, not assumed) — so one shared THREE.Skeleton is built once and
+// every skinned piece's own per-vertex bone weights bind straight to it,
+// same bone index space, no remapping needed. Pieces with no skeleton
+// (static Props, or a piece that failed to parse its skeleton) fall back to
+// a plain unskinned Mesh, same as the single-mesh exportMeshToGlb above.
+export async function exportMeshesToGlb(meshes) {
+  const scene = new THREE.Scene();
+  const material = new THREE.MeshStandardMaterial({ color: '#dbe7f5', metalness: 0.1, roughness: 0.55 });
+
+  const skinned = meshes.filter((m) => m?.skeleton?.length > 0 && m?.boneWeights);
+  let sharedSkeleton = null;
+
+  if (skinned.length) {
+    // Every piece carries its own copy of the skeleton, but they're all the
+    // same rig (byte-identical bind matrices) — any one's bone list/hierarchy
+    // works as the reference. Only the flip (see decideSkeletonFlip) needs
+    // votes from all of them.
+    const referenceSkeleton = skinned[0].skeleton;
+    const bindPositions = referenceSkeleton.map((bone) => matrixPosition(bone.invBindMatrix));
+    const flip = decideSkeletonFlip(skinned, bindPositions);
+    const worldPositions = flip ? bindPositions.map(([x, y, z]) => [-x, y, -z]) : bindPositions;
+    const bones = referenceSkeleton.map((bone, i) => {
+      const b = new THREE.Bone();
+      b.name = bone.name || `bone_${i}`;
+      return b;
+    });
+    const rootBones = [];
+    referenceSkeleton.forEach((bone, i) => {
+      const parentIndex = bone.parentIndex;
+      const world = worldPositions[i] || [0, 0, 0];
+      if (parentIndex >= 0 && bones[parentIndex]) {
+        const parentWorld = worldPositions[parentIndex] || [0, 0, 0];
+        bones[i].position.set(world[0] - parentWorld[0], world[1] - parentWorld[1], world[2] - parentWorld[2]);
+        bones[parentIndex].add(bones[i]);
+      } else {
+        bones[i].position.set(world[0], world[1], world[2]);
+        rootBones.push(bones[i]);
+      }
+    });
+    for (const root of rootBones) {
+      root.updateMatrixWorld(true);
+      scene.add(root);
+    }
+    sharedSkeleton = new THREE.Skeleton(bones);
+  }
+
+  for (const m of meshes) {
+    if (!m || !m.positions || !m.indices) continue;
+    const vertexCount = m.positions.length / 3;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(Float32Array.from(m.positions), 3));
+    if (m.uvs?.length === vertexCount * 2) {
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(Float32Array.from(m.uvs), 2));
+    }
+    geometry.setIndex(Array.from(m.indices));
+    if (m.normals?.length === vertexCount * 3) {
+      geometry.setAttribute('normal', new THREE.Float32BufferAttribute(Float32Array.from(m.normals), 3));
+    } else {
+      geometry.computeVertexNormals();
+    }
+
+    if (sharedSkeleton && m.skeleton?.length > 0 && m.boneWeights) {
+      const { skinIndex, skinWeight } = buildSkinAttributes(m.boneWeights, vertexCount);
+      geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndex, 4));
+      geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeight, 4));
+      const skinnedMesh = new THREE.SkinnedMesh(geometry, material);
+      scene.add(skinnedMesh);
+      skinnedMesh.bind(sharedSkeleton);
+    } else {
+      scene.add(new THREE.Mesh(geometry, material));
+    }
+  }
+
+  const exporter = new GLTFExporter();
+  return exporter.parseAsync(scene, { binary: true });
 }

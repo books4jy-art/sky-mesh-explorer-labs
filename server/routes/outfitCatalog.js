@@ -13,7 +13,8 @@ export async function outfitCatalog(req, res) {
 
     const { rows } = await pool.query(`
       select id, name, category, drive_file_id as "driveFileId", image_url as "imageUrl",
-             obj_drive_file_id as "objDriveFileId", obj_file_name as "objFileName"
+             obj_drive_file_id as "objDriveFileId", obj_file_name as "objFileName",
+             alt_obj_drive_file_id as "altObjDriveFileId", alt_obj_file_name as "altObjFileName"
       from outfit_icons
       where category is not null and trim(category) <> ''
       order by category, name
