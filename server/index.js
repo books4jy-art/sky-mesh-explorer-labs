@@ -8,8 +8,6 @@ import { fetchDriveObjFile } from './routes/fetchDriveObjFile.js';
 import { syncDriveLibrary } from './routes/syncDriveLibrary.js';
 import { outfitCatalog } from './routes/outfitCatalog.js';
 import { getOutfitIconImage } from './routes/getOutfitIconImage.js';
-import { browseTextureFiles } from './routes/browseTextureFiles.js';
-import { fetchDriveTextureFile } from './routes/fetchDriveTextureFile.js';
 import { fetchDriveMeshFile } from './routes/fetchDriveMeshFile.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -23,8 +21,6 @@ app.post('/api/functions/fetchDriveObjFile', fetchDriveObjFile);
 app.post('/api/functions/syncDriveLibrary', syncDriveLibrary);
 app.post('/api/functions/outfitCatalog', outfitCatalog);
 app.get('/api/functions/getOutfitIconImage', getOutfitIconImage);
-app.post('/api/functions/browseTextureFiles', browseTextureFiles);
-app.get('/api/functions/fetchDriveTextureFile', fetchDriveTextureFile);
 app.get('/api/functions/fetchDriveMeshFile', fetchDriveMeshFile);
 
 if (process.env.NODE_ENV === 'production') {

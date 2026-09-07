@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Grid3x3, RotateCw, X, BookOpen, Box, Image as ImageIcon } from 'lucide-react';
+import { Download, Grid3x3, RotateCw, X, BookOpen, Box } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Image } from '@/components/ui/image';
@@ -13,7 +13,6 @@ import MeshStats from '@/components/viewer/MeshStats';
 import UvInspector from '@/components/viewer/UvInspector';
 import MeshCanvas from '@/components/viewer/MeshCanvas';
 import TexturePaster from '@/components/viewer/TexturePaster';
-import TextureLibraryPanel from '@/components/viewer/TextureLibraryPanel';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { base44 } from '@/api/base44Client';
 import { parseObj } from '@/lib/objParser';
@@ -31,8 +30,6 @@ export default function Viewer() {
   const [textureError, setTextureError] = useState(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(false);
-  const [textureLibraryOpen, setTextureLibraryOpen] = useState(false);
-  const [libraryTextureLoading, setLibraryTextureLoading] = useState(false);
   const [glbExporting, setGlbExporting] = useState(false);
   const [glbError, setGlbError] = useState(null);
 
@@ -77,46 +74,23 @@ export default function Viewer() {
     }
   };
 
-  // Shared by the local-file paster and the Drive texture library below.
-  const decodeTextureBytes = (bytes, name) => {
-    const asset = loadTextureBytes(bytes, name);
-    if (!asset.rgba) {
-      throw new Error(asset.meta ? `Unsupported format (${asset.meta.format || 'unknown'}) — not decoded to RGBA.` : 'Texture not decoded to RGBA.');
-    }
-    const tex = new THREE.DataTexture(asset.rgba.data, asset.rgba.width, asset.rgba.height);
-    tex.needsUpdate = true;
-    tex.flipY = false;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  };
-
   const handleTexture = async (file) => {
     setTextureError(null);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const tex = decodeTextureBytes(bytes, file.name);
+      const asset = loadTextureBytes(bytes, file.name);
+      if (!asset.rgba) {
+        setTextureError(asset.meta ? `Unsupported format (${asset.meta.format || 'unknown'}) — not decoded to RGBA.` : 'Texture not decoded to RGBA.');
+        return;
+      }
+      const tex = new THREE.DataTexture(asset.rgba.data, asset.rgba.width, asset.rgba.height);
+      tex.needsUpdate = true;
+      tex.flipY = false;
+      tex.colorSpace = THREE.SRGBColorSpace;
       setTexture(tex);
       setTextureName(file.name);
     } catch (e) {
       setTextureError(e.message || 'Failed to decode texture.');
-    }
-  };
-
-  const handlePickLibraryTexture = async (fileEntry) => {
-    setTextureError(null);
-    setLibraryTextureLoading(true);
-    try {
-      const res = await fetch(`/api/functions/fetchDriveTextureFile?driveFileId=${encodeURIComponent(fileEntry.driveFileId)}`);
-      if (!res.ok) throw new Error(`Failed to download ${fileEntry.name} (${res.status})`);
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      const tex = decodeTextureBytes(bytes, fileEntry.name);
-      setTexture(tex);
-      setTextureName(fileEntry.name);
-      setTextureLibraryOpen(false);
-    } catch (e) {
-      setTextureError(e.message || 'Failed to load texture from library.');
-    } finally {
-      setLibraryTextureLoading(false);
     }
   };
 
@@ -219,12 +193,6 @@ export default function Viewer() {
             )}
 
             <TexturePaster onFile={handleTexture} textureName={textureName} onClear={clearTexture} error={textureError} />
-            <button
-              onClick={() => setTextureLibraryOpen(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-white/50 transition-colors hover:border-white/30 hover:text-white/80"
-            >
-              <ImageIcon className="h-3.5 w-3.5" /> Browse Texture Library
-            </button>
 
             <div className="space-y-4">
               <label className="flex items-center justify-between">
@@ -265,14 +233,6 @@ export default function Viewer() {
       )}
       {libraryOpen && (
         <LibraryPanel onClose={() => setLibraryOpen(false)} onPick={handleLoadObj} loadingFile={libraryLoading} />
-      )}
-      {textureLibraryOpen && (
-        <TextureLibraryPanel
-          onClose={() => setTextureLibraryOpen(false)}
-          onPick={handlePickLibraryTexture}
-          loadingFile={libraryTextureLoading}
-          meshFileName={data?.fileName}
-        />
       )}
     </div>
   );
